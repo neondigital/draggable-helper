@@ -3,18 +3,21 @@
   "version": "1.0.20",
   "description": "",
   "main": "src/index.js",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/"
+  },
   "scripts": {
     "build": "bili --format cjs,umd,umd-min,es --banner",
     "dev": "bili --format cjs,umd --watch"
   },
-  "author": "phphe <phphe@outlook.com> (https://github.com/phphe)",
+  "author": "Alec <alec@neondigital.co.uk>",
   "unpkg": "dist/draggable-helper.js",
   "bugs": {
-    "url": "https://github.com/phphe/draggable-helper/issues"
+    "url": "https://github.com/neondigital/draggable-helper/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/phphe/draggable-helper.git"
+    "url": "https://github.com/neondigital/draggable-helper"
   },
   "devDependencies": {
     "bili": "^3.0.14"
