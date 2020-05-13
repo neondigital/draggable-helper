@@ -3,12 +3,8 @@
  * (c) 2018-present phphe <phphe@outlook.com> (https://github.com/phphe)
  * Released under the MIT License.
  */
-'use strict';
-
-function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
-
-var hp = require('helper-js');
-var DragEventService = _interopDefault(require('drag-event-service'));
+import { offDOM, onDOM, getElSize, backupAttr, addClass, restoreAttr, getPosition } from 'helper-js';
+import DragEventService from 'drag-event-service';
 
 /***
 const destroy = draggableHelper(HTMLElement dragHandlerEl, Object opt = {})
@@ -57,7 +53,7 @@ function index (dragHandlerEl) {
 
   var destroy = function destroy() {
     DragEventService.off(dragHandlerEl, 'end', dragHandlerEl._draggbleEventHandler);
-    hp.offDOM(dragHandlerEl, 'selectstart', preventSelect);
+    offDOM(dragHandlerEl, 'selectstart', preventSelect);
     delete dragHandlerEl._draggbleEventHandler;
   };
 
@@ -67,7 +63,7 @@ function index (dragHandlerEl) {
 
   dragHandlerEl._draggbleEventHandler = start;
   DragEventService.on(dragHandlerEl, 'start', dragHandlerEl._draggbleEventHandler);
-  hp.onDOM(dragHandlerEl, 'selectstart', preventSelect);
+  onDOM(dragHandlerEl, 'selectstart', preventSelect);
   return destroy;
 
   function start(e, mouse) {
@@ -98,7 +94,7 @@ function index (dragHandlerEl) {
     } // dom actions
 
 
-    var size = hp.getElSize(el);
+    var size = getElSize(el);
     var style = Object.assign({
       width: "".concat(size.width, "px"),
       height: "".concat(size.height, "px"),
@@ -108,15 +104,15 @@ function index (dragHandlerEl) {
       left: position.x + 'px',
       top: position.y + 'px'
     }, opt.style || opt.getStyle && opt.getStyle(opt) || {});
-    hp.backupAttr(el, 'style');
+    backupAttr(el, 'style');
 
     for (var key in style) {
       el.style[key] = style[key];
     } // add class
 
 
-    hp.backupAttr(el, 'class');
-    hp.addClass(el, opt.draggingClass);
+    backupAttr(el, 'class');
+    addClass(el, opt.draggingClass);
   }
 
   function moving(e, mouse) {
@@ -184,8 +180,8 @@ function index (dragHandlerEl) {
       if (opt.clone) {
         el.parentElement.removeChild(el);
       } else {
-        hp.restoreAttr(el, 'style');
-        hp.restoreAttr(el, 'class');
+        restoreAttr(el, 'style');
+        restoreAttr(el, 'class');
       }
 
       opt.drop && opt.drop(e, opt, store);
@@ -205,7 +201,7 @@ function index (dragHandlerEl) {
     }
 
     return {
-      position: hp.getPosition(el),
+      position: getPosition(el),
       el: el
     };
   }
@@ -221,4 +217,4 @@ function index (dragHandlerEl) {
   }
 }
 
-module.exports = index;
+export default index;

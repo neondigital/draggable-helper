@@ -3,131 +3,90 @@ import DragEventService from 'drag-event-service'
 
 /***
 const destroy = draggableHelper(HTMLElement dragHandlerEl, Object opt = {})
-opt.beforeDrag(startEvent, moveEvent, store, opt) return false to prevent drag
-opt.drag(startEvent, moveEvent, store, opt) return false to prevent drag
-[Object] opt.style || opt.getStyle(store, opt) set style of moving el style
+opt.drag(e, opt, store)
+[Object] opt.style || opt.getStyle(opt) set style of moving el style
 [Boolean] opt.clone
 opt.draggingClass, default dragging
-opt.moving(e, store, opt) return false can prevent moving
-opt.drop(e, store, opt)
-opt.getEl(dragHandlerEl, store, opt) get the el that will be moved. default is dragHandlerEl
+opt.moving(e, opt, store) return false can prevent moving
+opt.drop(e, opt, store)
+opt.getEl(dragHandlerEl, opt) get the el that will be moved. default is dragHandlerEl
 opt.minTranslate default 10, unit px
-[Boolean] opt.triggerBySelf: false if trigger only by self, can not be triggered by children
-[Boolean] opt.restoreDOMManuallyOndrop the changed DOM will be restored automatically on drop. This disable it and pass restoreDOM function into store.
-
-add other prop into opt, you can get opt in callback
+add other prop into opt, you get opt in callback
 store{
   el
-  originalEl
   initialMouse
   initialPosition
   mouse
   move
   movedCount // start from 0
-  startEvent
-  endEvent
-  restoreDOM // function if opt.restoreDOMManuallyOndrop else null
 }
 e.g.
 draggable(this.$el, {
   vm: this,
   data: this.data,
-  drag: (e, store, opt) => {
+  drag: (e, opt, store) => {
     dplh.style.height = store.el.querySelector('.TreeNodeSelf').offsetHeight + 'px'
     th.insertAfter(dplh, opt.data)
   },
-  moving: (e, store, opt) => {
+  moving: (e, opt, store) => {
     hp.arrayRemove(dplh.parent.children, dplh)
   },
-  drop: (e, store, opt) => {
+  drop: (e, opt, store) => {
     hp.arrayRemove(dplh.parent.children, dplh)
   },
 })
 ***/
+
 const IGNORE_TRIGGERS = ['INPUT','TEXTAREA', 'SELECT', 'OPTGROUP', 'OPTION']
-const UNDRAGGABLE_CLASS = 'undraggable'
 
 export default function (dragHandlerEl, opt = {}) {
-  opt = {
-    minTranslate: 10,
-    draggingClass: 'dragging',
-    ...opt,
+  if (opt.minTranslate == null) {
+    opt.minTranslate = 10
   }
   let store = getPureStore()
   const destroy = () => {
-    DragEventService.off(dragHandlerEl, 'start', dragHandlerEl._draggbleEventHandler)
+    DragEventService.off(dragHandlerEl, 'end', dragHandlerEl._draggbleEventHandler)
+    hp.offDOM(dragHandlerEl, 'selectstart', preventSelect)
     delete dragHandlerEl._draggbleEventHandler
   }
   if (dragHandlerEl._draggbleEventHandler) {
     destroy()
   }
   dragHandlerEl._draggbleEventHandler = start
-  DragEventService.on(dragHandlerEl, 'start', start)
-  return {destroy, options: opt}
+  DragEventService.on(dragHandlerEl, 'start', dragHandlerEl._draggbleEventHandler)
+  hp.onDOM(dragHandlerEl, 'selectstart', preventSelect)
+  return destroy
   function start(e, mouse) {
-    // detect draggable =================================
-    if (opt.triggerBySelf && e.target !== dragHandlerEl) {
-      return
-    }
     if (IGNORE_TRIGGERS.includes(e.target.tagName)) {
-      return
+        return
     }
-    if (hp.hasClass(e.target, UNDRAGGABLE_CLASS)) {
-      return
-    }
-    const isParentUndraggable = hp.findParent(e.target, (el) => {
-      if (hp.hasClass(el, UNDRAGGABLE_CLASS)) {
-        return true
-      }
-      if (el === dragHandlerEl) {
-        return 'break'
-      }
-    })
-    if (isParentUndraggable) {
-      return
-    }
-    // detect draggable end =================================
-    if (!DragEventService.isTouch(e)) {
-      // Do not prevent event now and when the client is mobile. Doing so will result in elements within the node not triggering click event.
-      // 不要在此时, 客户端为移动端时阻止事件. 否则将导致节点内的元素不触发点击事件.
-      e.preventDefault();
-    }
+    // e.stopPropagation()
     store.mouse = {
       x: mouse.x,
       y: mouse.y,
     }
-    store.startEvent = e
     store.initialMouse = {...store.mouse}
-    /*
-    must set passive false for touch, else the follow error occurs in Chrome:
-    Unable to preventDefault inside passive event listener due to target being treated as passive. See https://www.chromestatus.com/features/5093566007214080
-     */
-    DragEventService.on(document, 'move', moving, {touchArgs: [{passive: false}]})
+    DragEventService.on(document, 'move', moving, {passive: false}) // passive: false is for touchmove event
     DragEventService.on(window, 'end', drop)
   }
   function drag(e) {
-    let canDrag = opt.beforeDrag && opt.beforeDrag(store.startEvent, e, store, opt)
-    if (canDrag === false) {
-      return false
-    }
     const {el, position} = resolveDragedElAndInitialPosition()
     store.el = el
     store.initialPosition = {...position}
-    canDrag = opt.drag && opt.drag(store.startEvent, e, store, opt)
-    if (canDrag === false) {
+    const r = opt.drag && opt.drag(e, opt, store)
+    if (r === false) {
       return false
     }
     // dom actions
-    const size = hp.getBoundingClientRect(el)
+    const size = hp.getElSize(el)
     const style = {
       width: `${Math.ceil(size.width)}px`,
-      height: `${Math.ceil(size.height)}px`,
       zIndex: 9999,
-      opacity: 0.8,
+      opacity: 1,
       position: 'absolute',
       left: position.x + 'px',
       top: position.y + 'px',
-      ...(opt.style || opt.getStyle && opt.getStyle(store, opt) || {}),
+      ...(opt.style || opt.getStyle && opt.getStyle(opt) || {}),
     }
     hp.backupAttr(el, 'style')
     for (const key in style) {
@@ -138,7 +97,6 @@ export default function (dragHandlerEl, opt = {}) {
     hp.addClass(el, opt.draggingClass)
   }
   function moving(e, mouse) {
-    e.preventDefault()
     store.mouse = {
       x: mouse.x,
       y: mouse.y,
@@ -162,8 +120,11 @@ export default function (dragHandlerEl, opt = {}) {
       }
     }
     // move started
+    // e.preventDefault() to prevent text selection and page scrolling when touch
+    e.preventDefault()
+
     if (canMove && opt.moving) {
-      if (opt.moving(e, store, opt) === false) {
+      if (opt.moving(e, opt, store) === false) {
         canMove = false
       }
     }
@@ -179,44 +140,39 @@ export default function (dragHandlerEl, opt = {}) {
     }
   }
   function drop(e) {
-    DragEventService.off(document, 'move', moving, {touchArgs: [{passive: false}]})
+    DragEventService.off(document, 'move', moving, {passive: false})
     DragEventService.off(window, 'end', drop)
     // drag executed if movedCount > 0
     if (store.movedCount > 0) {
       store.movedCount = 0
-      store.endEvent = e
       const {el} = store
-      let restoreDOM = () => {
-        if (opt.clone) {
-          el.parentElement.removeChild(el)
-        } else {
-          hp.restoreAttr(el, 'style')
-          hp.restoreAttr(el, 'class')
-        }
+      if (opt.clone) {
+        el.parentElement.removeChild(el)
+      } else {
+        hp.restoreAttr(el, 'style')
+        hp.restoreAttr(el, 'class')
       }
-      if (!opt.restoreDOMManuallyOndrop) {
-        restoreDOM()
-        restoreDOM = null
-      }
-      store.restoreDOM = restoreDOM
-      opt.drop && opt.drop(e, store, opt)
+      opt.drop && opt.drop(e, opt, store)
     }
     store = getPureStore()
   }
   function resolveDragedElAndInitialPosition() {
-    const el0 = opt.getEl ? opt.getEl(dragHandlerEl, store, opt) : dragHandlerEl
+    const el0 = opt.getEl ? opt.getEl(dragHandlerEl, opt) : dragHandlerEl
     let el = el0
-    store.originalEl = el0
     if (opt.clone) {
+      store.triggerEl = el0
       el = el0.cloneNode(true)
       el0.parentElement.appendChild(el)
     }
     return {
-      position: hp.getPosition(el0),
+      position: hp.getPosition(el),
       el,
     }
   }
   function getPureStore() {
     return {movedCount: 0}
+  }
+  function preventSelect(e) {
+    e.preventDefault()
   }
 }
